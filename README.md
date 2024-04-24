@@ -1,2 +1,2 @@
-# shellCodeMaker
-It is shell script to  make shell code easier 
+# shellcodeGen
+It is shell script to generate shellcode easier 
