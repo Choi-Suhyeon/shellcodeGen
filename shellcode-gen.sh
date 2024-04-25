@@ -1,13 +1,14 @@
 #!/bin/bash
 
 echoHelp() {
-	echo "$0 -o FILE_NAME [-s -x -r]"
+	echo "$0 -o FILE_NAME [-s -a -r -k]"
 	echo "$0 -h"
 	echo "<options>"
 	echo "-o FILE_NAME : Essential. '*.s' file to create with shell code."
 	echo "-s SYNTAX    : Optional. Specify syntax(att(default) or intel)." 
-	echo "-x           : Optional. 64bit mode."
+	echo "-a ARCH      : Optional. Specify architecture(64(default) or 32)"
 	echo "-r           : Optional. Run shell code by making it an executable file."
+	echo "-k           : Optional. Keep the intermediate files."
 	echo "-h           : Print this message and then exit."
 	echo "<exit code>"
 	echo "0 : Success."
@@ -16,31 +17,43 @@ echoHelp() {
 }
 
 run() {
-	IS_HELP="TRUE"
+	IS_HELP=true
 	SYNTAX="att"
+	ARCHITECTURE="64"
+	RUN=false
+	KEEP=false
 
-	while getopts o:s:hxr opts; do
+	while getopts o:s:a:hrk opts; do
 		case $opts in
 		h) 
 			break
 			;;
 		o) 
-			IS_HELP="FALSE"
+			IS_HELP=false
 			FILE_NAME=$OPTARG
 			;;
 		s)
 			SYNTAX=$OPTARG
 			;;
-		x) 
-			IS_64BIT="TRUE"
+		a) 
+			ARCHITECTURE=$OPTARG
 			;;
 		r) 
-			RUN="TRUE"
+			RUN=true
+			;;
+		k)
+			KEEP=true
+			;;
+		*)
+			echo "ERROR: Illegal Option Found"
+			exit 1
 			;;
 		esac
 	done
 
-	if [ "$IS_HELP" == "TRUE" ]; then
+	echo "$KEEP"
+
+	if $IS_HELP; then
 		echoHelp
 	fi
 
@@ -48,14 +61,18 @@ run() {
 		NAME_FORMAT=${FILE_NAME%*.s}
 	else
 		echo "$FILE_NAME"
-		echo "ERROR: This is not a file with an 's' extension."
+		echo "ERROR: The file must have the extension 's'."
 		exit 1
 	fi
 
-	if [ "$IS_64BIT" == "TRUE" ]; then
-		ARCHITECTURE="64"
-	else
-		ARCHITECTURE="32"
+	if [ "$SYNTAX" != "att" ] && [ "$SYNTAX" != "intel" ]; then
+		echo "ERROR: Unsupported assembly SYNTAX. Must be either 'att' or 'intel'."
+		exit 1
+	fi
+
+	if [ "$ARCHITECTURE" != "64" ] && [ "$ARCHITECTURE" != "32" ]; then
+		echo "ERROR: Unsupported ARCHITECTURE. Must be either '64' or '32'."
+		exit 1
 	fi
 
 	as --$ARCHITECTURE -o "$NAME_FORMAT.o" $FILE_NAME
@@ -64,11 +81,12 @@ run() {
 	objdump -d "$NAME_FORMAT.o"
 	echo -e "[-------------------------------------------]\n"
 
-	if [ "$RUN" == "TRUE" ]; then
+	if $RUN; then
 		ld -o "./$NAME_FORMAT" "./$NAME_FORMAT.o"
 
 		echo "[-------------- RUN YOUR CODE --------------]"
-		$("./$NAME_FORMAT")
+		chmod u+x "./$NAME_FORMAT"
+		"./$NAME_FORMAT"
 		echo -e "[-------------------------------------------]\n"
 	fi
 
@@ -79,6 +97,14 @@ run() {
 	y | Y)
 		;;
 	n | N) 
+		if ! $KEEP; then
+			rm "$NAME_FORMAT.o"
+
+			if $RUN; then
+				rm $NAME_FORMAT
+			fi
+		fi
+
 		exit 0
 		;;
 	*) 
@@ -90,12 +116,15 @@ run() {
 	objcopy --dump-section .text="$NAME_FORMAT.bin" "$NAME_FORMAT.o"
 	ROUGH=$(hexdump -ve '/1 "%02X" " "' "$NAME_FORMAT.bin")
 
-	python3 -c "print('', ''.join(f'\\\\x{x}' for x in '${ROUGH}'.split()), sep='\n')"
+	python3 -c "split='${ROUGH}'.split();print(f'\nbytes length : {len(split)}({hex(len(split))})\n\n'+''.join(f'\\\\x{x}' for x in split))"
 
-	rm "$NAME_FORMAT.o" "$NAME_FORMAT.bin"
- 	if [ "$RUN" == "TRUE" ]; then
- 		rm $NAME_FORMAT
- 	fi
+	if ! $KEEP; then
+		rm "$NAME_FORMAT.o" "$NAME_FORMAT.bin"
+
+		if $RUN; then
+			rm $NAME_FORMAT
+		fi
+	fi
 }
 
 run "$@"
