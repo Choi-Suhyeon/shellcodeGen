@@ -90,8 +90,8 @@ run() {
 		echo -e "[-------------------------------------------]\n"
 	fi
 
-	printf "Do you want to make it into SHELLCODE? [Y/n]: "
-	read MAKE_IT
+	echo -n "Do you want to make it into SHELLCODE? [Y/n]: "
+	read -r  MAKE_IT
 
 	case $MAKE_IT in
 	y | Y)
@@ -114,9 +114,13 @@ run() {
 	esac
 
 	objcopy --dump-section .text="$NAME_FORMAT.bin" "$NAME_FORMAT.o"
-	ROUGH=$(hexdump -ve '/1 "%02X" " "' "$NAME_FORMAT.bin")
 
-	python3 -c "split='${ROUGH}'.split();print(f'\nbytes length : {len(split)}({hex(len(split))})\n\n'+''.join(f'\\\\x{x}' for x in split))"
+	SPLIT=($(hexdump -ve '/1 "%02X" " "' "$NAME_FORMAT.bin"))
+	LENGTH=${#SPLIT[@]}
+
+	printf "\nbytes length : %d (%#X)\n\n" "$LENGTH" "$LENGTH"
+	printf "\\\\x%s" "${SPLIT[@]}"
+	echo
 
 	if ! $KEEP; then
 		rm "$NAME_FORMAT.o" "$NAME_FORMAT.bin"

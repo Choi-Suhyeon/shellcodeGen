@@ -7,7 +7,6 @@ It is shell script to generate shellcode easier.
 - hexdump
 - objdump
 - objcopy
-- python3
 
 ## Useage Guide
 ```
