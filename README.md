@@ -1,6 +1,14 @@
 # shellcodeGen
 It is shell script to generate shellcode easier.
 
+## Programs Used Within The Program
+- as
+- ld
+- hexdump
+- objdump
+- objcopy
+- python3
+
 ## Useage Guide
 ```
 ./shellcode-gen.sh -o FILE_NAME [-s -a -r -k]
@@ -78,7 +86,7 @@ Disassembly of section .text:
   35:	0f 05                	syscall
 [-------------------------------------------]
 
-Do you want to make it into SHELL CODE? [Y/n]: y
+Do you want to make it into SHELLCODE? [Y/n]: y
 
 bytes length : 55(0x37)
 

@@ -90,7 +90,7 @@ run() {
 		echo -e "[-------------------------------------------]\n"
 	fi
 
-	printf "Do you want to make it into SHELL CODE? [Y/n]: "
+	printf "Do you want to make it into SHELLCODE? [Y/n]: "
 	read MAKE_IT
 
 	case $MAKE_IT in
