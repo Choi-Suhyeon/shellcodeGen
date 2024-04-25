@@ -1,15 +1,16 @@
 #!/bin/bash
 
 echoHelp() {
-	echo "$0 -o FILE_NAME [-s -a -r -k]"
+	echo "$0 -f TARGET_FILE_NAME [-o -a -s -r -k]"
 	echo "$0 -h"
 	echo "<options>"
-	echo "-o FILE_NAME : Essential. '*.s' file to create with shell code."
-	echo "-s SYNTAX    : Optional. Specify syntax(att(default) or intel)." 
-	echo "-a ARCH      : Optional. Specify architecture(64(default) or 32)"
-	echo "-r           : Optional. Run shell code by making it an executable file."
-	echo "-k           : Optional. Keep the intermediate files."
-	echo "-h           : Print this message and then exit."
+	echo "-h                  : Print this message and then exit."
+	echo "-f TARGET_FILE_NAME : Specify the file with the extension 's' for generating shellcode."
+	echo "-o OUTPUT_FILE_NAME : (Optional) Save the completed shellcode to the specified file."
+	echo "-a ARCHITECTURE     : (Optional) Specify architecture(64(default) or 32)."
+	echo "-s SYNTAX           : (Optional) Specify syntax(att(default) or intel)." 
+	echo "-r                  : (Optional) Run shell code by making it an executable file."
+	echo "-k                  : (Optional) Keep the intermediate files."
 	echo "<exit code>"
 	echo "0 : Success."
 	echo "1 : Failure."
@@ -17,26 +18,31 @@ echoHelp() {
 }
 
 run() {
-	IS_HELP=true
-	SYNTAX="att"
 	ARCHITECTURE="64"
-	RUN=false
-	KEEP=false
+	SYNTAX="att"
+	OUTPUT=""
 
-	while getopts o:s:a:hrk opts; do
+	IS_HELP=true
+	KEEP=false
+	RUN=false
+
+	while getopts f:o:s:a:hrk opts; do
 		case $opts in
 		h) 
 			break
 			;;
-		o) 
+		f) 
 			IS_HELP=false
 			FILE_NAME=$OPTARG
 			;;
-		s)
-			SYNTAX=$OPTARG
+		o)
+			OUTPUT=$OPTARG
 			;;
 		a) 
 			ARCHITECTURE=$OPTARG
+			;;
+		s)
+			SYNTAX=$OPTARG
 			;;
 		r) 
 			RUN=true
@@ -51,26 +57,28 @@ run() {
 		esac
 	done
 
-	echo "$KEEP"
-
 	if $IS_HELP; then
 		echoHelp
 	fi
 
-	if [[ "$FILE_NAME" == *?.s ]]; then
-		NAME_FORMAT=${FILE_NAME%*.s}
-	else
-		echo "$FILE_NAME"
+	if [[ ! "$FILE_NAME" =~ .+\.s ]]; then
 		echo "ERROR: The file must have the extension 's'."
 		exit 1
 	fi
 
-	if [ "$SYNTAX" != "att" ] && [ "$SYNTAX" != "intel" ]; then
+	if [ ! -f "$FILE_NAME" -o ! -r "$FILE_NAME" ]; then
+		echo "ERROR: This is not a file or not readable."
+		exit 1
+	fi
+
+	NAME_FORMAT=${FILE_NAME%*.s}
+
+	if [ "$SYNTAX" != "att" -a "$SYNTAX" != "intel" ]; then
 		echo "ERROR: Unsupported assembly SYNTAX. Must be either 'att' or 'intel'."
 		exit 1
 	fi
 
-	if [ "$ARCHITECTURE" != "64" ] && [ "$ARCHITECTURE" != "32" ]; then
+	if [ "$ARCHITECTURE" != "64" -a "$ARCHITECTURE" != "32" ]; then
 		echo "ERROR: Unsupported ARCHITECTURE. Must be either '64' or '32'."
 		exit 1
 	fi
@@ -94,9 +102,9 @@ run() {
 	read -r  MAKE_IT
 
 	case $MAKE_IT in
-	y | Y)
+	[Yy]|[Yy][Ee][Ss])
 		;;
-	n | N) 
+	[Nn]|[Nn][Oo]) 
 		if ! $KEEP; then
 			rm "$NAME_FORMAT.o"
 
@@ -108,7 +116,7 @@ run() {
 		exit 0
 		;;
 	*) 
-		echo "ERROR: The input is NOT 'y' or 'n'."
+		echo "ERROR: The input must be one of 'y', 'n', 'yes', or 'no'."
 		exit 1
 		;;
 	esac
@@ -119,7 +127,13 @@ run() {
 	LENGTH=${#SPLIT[@]}
 
 	printf "\nbytes length : %d (%#X)\n\n" "$LENGTH" "$LENGTH"
-	printf "\\\\x%s" "${SPLIT[@]}"
+
+	if [ -z "$OUTPUT" ]; then
+		printf "\\\\x%s" "${SPLIT[@]}"
+	else
+		printf "\\\\x%s" "${SPLIT[@]}" | tee "$OUTPUT"
+	fi
+
 	echo
 
 	if ! $KEEP; then

@@ -1,5 +1,5 @@
 # shellcodeGen
-It is shell script to generate shellcode easier.
+This shell script facilitates the generation of shellcode. It assists in crafting shellcode effortlessly from a file with the extension 's', which contains code written in either att or intel syntax.
 
 ## Programs Used Within The Program
 - as
@@ -10,15 +10,16 @@ It is shell script to generate shellcode easier.
 
 ## Useage Guide
 ```
-./shellcode-gen.sh -o FILE_NAME [-s -a -r -k]
+./shellcode-gen.sh -f TARGET_FILE_NAME [-o -a -s -r -k]
 ./shellcode-gen.sh -h
 <options>
--o FILE_NAME : Essential. '*.s' file to create with shell code.
--s SYNTAX    : Optional. Specify syntax(att(default) or intel).
--a ARCH      : Optional. Specify architecture(64(default) or 32)
--r           : Optional. Run shell code by making it an executable file.
--k           : Optional. Keep the intermediate files.
--h           : Print this message and then exit.
+-h                  : Print this message and then exit.
+-f TARGET_FILE_NAME : Specify the file with the extension 's' for generating shellcode.
+-o OUTPUT_FILE_NAME : (Optional) Save the completed shellcode to the specified file.
+-a ARCHITECTURE     : (Optional) Specify architecture(64(default) or 32).
+-s SYNTAX           : (Optional) Specify syntax(att(default) or intel).
+-r                  : (Optional) Run shell code by making it an executable file.
+-k                  : (Optional) Keep the intermediate files.
 <exit code>
 0 : Success.
 1 : Failure.
@@ -55,7 +56,7 @@ syscall
 
 run :
 ```
-$ ./shellcode-gen.sh -o orw.s
+$ ./shellcode-gen.sh -f orw.s
 [------- ASSEMBLY WITH MACHINE CODE --------]
 
 orw.o:     file format elf64-x86-64
@@ -87,7 +88,7 @@ Disassembly of section .text:
 
 Do you want to make it into SHELLCODE? [Y/n]: y
 
-bytes length : 55(0x37)
+bytes length : 55 (0X37)
 
 \x6A\x67\x48\xB8\x2F\x74\x6D\x70\x2F\x66\x6C\x61\x50\x48\x89\xE7\x48\x31\xF6\x48\x31\xD2\x6A\x02\x58\x0F\x05\x48\x89\xC7\x48\x8D\x74\x24\xD0\x6A\x30\x5A\x48\x31\xC0\x0F\x05\x48\xC7\xC7\x01\x00\x00\x00\x48\x89\xF8\x0F\x05
 ```
