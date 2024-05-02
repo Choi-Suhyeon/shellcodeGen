@@ -1,13 +1,14 @@
 #!/bin/bash
 
 echoHelp() {
-	echo "$0 -f TARGET_FILE_NAME [-o -a -s -r -k]"
+	echo "$0 -f TARGET_FILE_NAME [-o -a -t -s -r -k]"
 	echo "$0 -h"
 	echo "<options>"
 	echo "-h                  : Print this message and then exit."
 	echo "-f TARGET_FILE_NAME : Specify the file with the extension 's' for generating shellcode."
 	echo "-o OUTPUT_FILE_NAME : (Optional) Save the completed shellcode to the specified file."
-	echo "-a ARCHITECTURE     : (Optional) Specify architecture(64(default) or 32)."
+	echo "-a ARCHITECTURE     : (Optional) Specify architecture(x86_64(default) or i386)."
+	echo "-t LITERAL_TYPE     : (Optional) Specify the literal type(str(default), arr, or all) of bytes of shellcode to output."
 	echo "-s SYNTAX           : (Optional) Specify syntax(att(default) or intel)." 
 	echo "-r                  : (Optional) Run shell code by making it an executable file."
 	echo "-k                  : (Optional) Keep the intermediate files."
@@ -18,7 +19,8 @@ echoHelp() {
 }
 
 run() {
-	ARCHITECTURE="64"
+	ARCHITECTURE="x86_64"
+	LITERAL_TYPE="str"
 	SYNTAX="att"
 	OUTPUT=""
 
@@ -26,7 +28,7 @@ run() {
 	KEEP=false
 	RUN=false
 
-	while getopts f:o:s:a:hrk opts; do
+	while getopts f:o:a:t:s:hrk opts; do
 		case $opts in
 		h) 
 			break
@@ -40,6 +42,9 @@ run() {
 			;;
 		a) 
 			ARCHITECTURE=$OPTARG
+			;;
+		t)
+			LITERAL_TYPE=$OPTARG
 			;;
 		s)
 			SYNTAX=$OPTARG
@@ -78,22 +83,34 @@ run() {
 		exit 1
 	fi
 
-	if [ "$ARCHITECTURE" != "64" -a "$ARCHITECTURE" != "32" ]; then
-		echo "ERROR: Unsupported ARCHITECTURE. Must be either '64' or '32'."
+	case $ARCHITECTURE in
+	"x86_64")
+		ARCH_NUM="64"
+		;;
+	"i386")
+		ARCH_NUM="32"
+		;;
+	*)
+		echo "ERROR: Unsupported ARCHITECTURE. Must be either 'x86_64' or 'i386'."
+		exit 1
+		;;
+	esac
+
+	if [ "$LITERAL_TYPE" != "str" -a "$LITERAL_TYPE" != "arr" -a "$LITERAL_TYPE" != "all" ]; then
+		echo "ERROR: Unsupported LITERAL_TYPE. Must be among 'str', 'arr', or 'all'."
 		exit 1
 	fi
 
-	as --$ARCHITECTURE -o "$NAME_FORMAT.o" $FILE_NAME
+	as --$ARCH_NUM -o "$NAME_FORMAT.o" $FILE_NAME
 
 	echo "[------- ASSEMBLY WITH MACHINE CODE --------]"
 	objdump -d "$NAME_FORMAT.o"
 	echo -e "[-------------------------------------------]\n"
 
 	if $RUN; then
-		ld -o "./$NAME_FORMAT" "./$NAME_FORMAT.o"
+		ld -m "elf_$ARCHITECTURE" -o "./$NAME_FORMAT" "./$NAME_FORMAT.o"
 
 		echo "[-------------- RUN YOUR CODE --------------]"
-		chmod u+x "./$NAME_FORMAT"
 		"./$NAME_FORMAT"
 		echo -e "[-------------------------------------------]\n"
 	fi
@@ -126,15 +143,35 @@ run() {
 	SPLIT=($(hexdump -ve '/1 "%02X" " "' "$NAME_FORMAT.bin"))
 	LENGTH=${#SPLIT[@]}
 
-	printf "\nbytes length : %d (%#X)\n\n" "$LENGTH" "$LENGTH"
+	printf "\nbytes length : %d (0x%X)\n\n" "$LENGTH" "$LENGTH"
 
-	if [ -z "$OUTPUT" ]; then
-		printf "\\\\x%s" "${SPLIT[@]}"
-	else
-		printf "\\\\x%s" "${SPLIT[@]}" | tee "$OUTPUT"
+	if [ $LITERAL_TYPE != "arr" ]; then
+		STR_LITERAL=$(printf "\\\\x%s" "${SPLIT[@]}")
+
+		echo "String Literal: "
+
+		if [ -z "$OUTPUT" ]; then
+			echo "$STR_LITERAL"
+		else
+			echo "$STR_LITERAL" | tee -a "$OUTPUT"
+		fi
+
+		echo
 	fi
 
-	echo
+	if [ $LITERAL_TYPE != "str" ]; then
+		ARR_LITERAL=$(printf "0x%s, " "${SPLIT[@]:0:$(($LENGTH - 1))}" && printf "0x${SPLIT[-1]}")
+
+		echo "Array Literal: "
+
+		if [ -z "$OUTPUT" ]; then
+			echo "$ARR_LITERAL"
+		else
+			echo "$ARR_LITERAL" | tee -a "$OUTPUT"
+		fi
+
+		echo
+	fi
 
 	if ! $KEEP; then
 		rm "$NAME_FORMAT.o" "$NAME_FORMAT.bin"
