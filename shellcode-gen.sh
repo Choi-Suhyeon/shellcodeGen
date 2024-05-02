@@ -18,6 +18,13 @@ echoHelp() {
 	exit 1
 }
 
+echo_with_highlight() {
+	SEARCH_ARR=("${@:2}")
+	SEARCH_STRS=$(IFS="|"; echo "${SEARCH_ARR[*]}")
+
+	echo "$(echo "$1" | sed -E "s/${SEARCH_STRS:0:$((${#SEARCH_STRS}-1))}/$(tput setaf 1)&$(tput sgr0)/g")"
+}
+
 run() {
 	ARCHITECTURE="x86_64"
 	LITERAL_TYPE="str"
@@ -103,16 +110,24 @@ run() {
 
 	as --$ARCH_NUM -o "$NAME_FORMAT.o" $FILE_NAME
 
-	echo "[------- ASSEMBLY WITH MACHINE CODE --------]"
-	objdump -d "$NAME_FORMAT.o"
-	echo -e "[-------------------------------------------]\n"
+	echo "[-------------------- ASSEMBLY WITH MACHINE CODE --------------------]"
+	WHITESPACE=("09 " "0a " "0b " "0c " "0d " "20 ")
+
+	echo_with_highlight "$(objdump -d "$NAME_FORMAT.o")" "${WHITESPACE[@]}"
+
+	echo
+	echo "NOTE : Whitespace in C : "
+	echo "  0x09(Horizontal Tab), 0x0A(Line Feed),       0x0B(Vertical Tab),"
+	echo "  0x0C(Form Feed),      0x0D(Carriage Return), 0x20(Space)"
+	echo
+	echo -e "[-------------------------------------------------------------------]\n"
 
 	if $RUN; then
 		ld -m "elf_$ARCHITECTURE" -o "./$NAME_FORMAT" "./$NAME_FORMAT.o"
 
-		echo "[-------------- RUN YOUR CODE --------------]"
+		echo "[-------------------------- RUN YOUR CODE --------------------------]"
 		"./$NAME_FORMAT"
-		echo -e "[-------------------------------------------]\n"
+		echo -e "[-------------------------------------------------------------------]\n"
 	fi
 
 	echo -n "Do you want to make it into SHELLCODE? [Y/n]: "
