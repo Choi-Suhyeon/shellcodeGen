@@ -30,7 +30,7 @@
 
 ## Example
 orw.s :
-```
+```bash
 $ cat orw.s
 .section .text
 .global _start
@@ -58,7 +58,8 @@ syscall
 ```
 
 run :
-```
+```bash
+$ ./shellcode-gen.sh -f orw.s -t all
 [-------------------- ASSEMBLY WITH MACHINE CODE --------------------]
 
 orw.o:     file format elf64-x86-64
