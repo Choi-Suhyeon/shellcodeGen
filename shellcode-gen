@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+
+exit_with_help() {
+	echo_help() {
+		echo "$0 TARGET_FILE_NAME [-a -t -s -r -k]" 
+		echo "$0 -h" 
+		echo "<options>" 
+		echo "TARGET_FILE_NAME       : (Optional) Specify the file with the extension 's' for generating shellcode."
+		echo "-a --arch ARCHITECTURE : (Optional) Specify architecture(x86_64(default) or i386)."
+		echo "-t --type LITERAL_TYPE : (Optional) Specify the literal type(str(default), arr, or bytes) of bytes of shellcode to output."
+		echo "-s --syntax SYNTAX     : (Optional) Specify syntax(att(default) or intel)."
+		echo "-r --run               : (Optional) Run shell code by making it an executable file."
+		echo "-k --keep              : (Optional) Keep the intermediate files."
+		echo
+		echo "-h --help              : Print this message and then exit."
+		echo
+		echo "<exit code>" 
+		echo 0 : Success. 
+		echo 1 : Failure. 
+	}
+	
+	echo_help >&2
+	exit 1
+}
+
+exit_with_failure() {
+	echo ERROR: "$@" >&2
+	exit 1
+}
+
+echo_with_highlight() {
+	search_arr=("${@:2}")
+	search_strs=$(IFS='|'; echo "${search_arr[*]}")
+
+	echo "$(echo "$1" | sed -E "s/${search_strs:0:$((${#search_strs}-1))}/$(tput setaf 1)&$(tput sgr0)/g")"
+}
+
+objdump_with_highlight() {
+	[ $# -ne 1 ] && exit 1
+
+	whitespace=('09 ' '0a ' '0b ' '0c ' '0d ' '20 ')
+	object_file="$1"
+
+	function_body() {
+		echo [-------------------- ASSEMBLY WITH MACHINE CODE --------------------]
+
+		echo_with_highlight "$(objdump -d "$object_file")" "${whitespace[@]}"
+
+		echo
+		echo NOTE : Whitespace in C : 
+		echo "  0x09(Horizontal Tab), 0x0A(Line Feed),       0x0B(Vertical Tab),"
+		echo "  0x0C(Form Feed),      0x0D(Carriage Return), 0x20(Space)"
+		echo
+		echo [-------------------------------------------------------------------]
+		echo
+	}
+
+	function_body >&2
+}
+
+run() {
+	[ $# -ne 2 ] && exit 1
+
+	file_executable="$1" object_file="$2"
+
+	function_body() {
+		ld -m "elf_$arch" -o "./$file_executable" "./$object_file"
+
+		echo [-------------------------- run YOUR CODE --------------------------]
+		./$file_executable
+		echo [-------------------------------------------------------------------]
+		echo
+	}
+
+	function_body >&2
+}
+
+main() {
+	literal_type=str   syntax=att         arch=x86_64       target=''
+	help_enabled=false keep_enabled=false run_enabled=false is_from_stdin=false
+	argc=$#
+
+	while [ $# -gt 0 ]; do
+		case $1 in
+			-a|--arch)
+				arch=$2
+				shift 2
+				;;
+			-t|--type)
+				literal_type=$2
+				shift 2
+				;;
+			-s|--syntax)
+				syntax=$2
+				shift 2
+				;;
+			-k|--keep)
+				keep_enabled=true
+				shift
+				;;
+			-r|--run)
+				run_enabled=true
+				shift
+				;;
+			-h|--help)
+				help_enabled=true
+				shift
+				break
+				;;
+			*)
+				target=$1
+				shift
+				;;
+		esac
+	done
+
+	$help_enabled || test $argc -le 0 && exit_with_help
+
+	if [ X"$target" = X ]; then
+		target=temp_shellcode_gen$$.s
+		is_from_stdin=true
+		contents=''
+
+		while read line; do
+			contents="$contents$line\n"
+		done
+
+		printf '%b' "$contents" > "$target"
+
+		unset $contents
+		unset $line
+	fi
+
+	arch_num=$(perl -e 'print { x86_64 => 64, i386 => 32 }->{$ARGV[0]} // ""' "$arch")
+
+	echo "$target" | grep -Pq '^.+\.s$' || exit_with_failure "The file must have the extension 's'."
+	[ -f "$target" -a -r "$target" ] || exit_with_failure 'This is not a file or not readable.'
+	[ "$syntax" = "att" -o "$syntax" = "intel" ] || exit_with_failure "Unsupported assembly syntax. Must be either 'att' or 'intel'."
+	echo "$literal_type" | grep -Pq '^(str|arr|bytes)$' || exit_with_failure "Unsupported literal_type. Must be among 'str', 'arr', or 'bytes'."
+	[ X"$arch_num" = X ] && exit_with_failure "Unsupported architecture. Must be either 'x86_64' or 'i386'."
+
+	raw_name=${target%.s}
+	bin_file=${raw_name}.bin
+	object_file=${raw_name}.o
+
+	as --$arch_num -o "$object_file" "$target"
+	objdump_with_highlight "$object_file"
+	$run_enabled && run "$raw_name" "$object_file"
+	objcopy --dump-section .text="$bin_file" "$object_file"
+
+	split=$(hexdump -ve '/1 "%02X" " "' "$bin_file")
+
+	case "$literal_type" in
+		str)   perl -e 'print join("", map { "\\x$_" } split(" ", $ARGV[0]))' "$split";;
+		arr)   perl -e 'print join(", ", map { "0x$_" } split(" ", $ARGV[0]))' "$split";;
+		bytes) perl -e 'print pack("H*", join("", split(" ", $ARGV[0])))' "$split";;
+	esac
+
+	if ! $keep_enabled; then
+		rm "$object_file" "$bin_file"
+		$run_enabled && rm "$raw_name"
+		$is_from_stdin && rm "$target"
+	fi
+
+	exit 0
+}
+
+main "$@"
